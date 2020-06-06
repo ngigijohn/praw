@@ -4,7 +4,7 @@
     * Send a push notification to android through _pushbullet_ for new posts
 * Also provided _Dockerfile_ in case you want to run it as a docker container
 
-# USAGE
+# Usage
 * Clone the repo
 * Fill in the correct credentials for both _pushbullet_ and _praw_
 * Either you can run the code as `python3 main.py` or through Dockerfile as follows
