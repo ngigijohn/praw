@@ -8,7 +8,8 @@ COPY ./requirements.txt .
 
 RUN apt-get update && \
     apt-get upgrade -y && \
-    pip install -r ./requirements.txt
+    pip install -r ./requirements.txt && \
+    mkdir ./logs
 
 COPY . .
 
