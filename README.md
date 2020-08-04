@@ -6,6 +6,8 @@
 
 # Usage
 * Clone the repo
+* Create API token for PRAW from [Reddit](https://www.reddit.com/prefs/apps)
+* Create API token for Pushbullet notifier from [Pushbullet](https://www.pushbullet.com/#settings/account)
 * Fill in the correct credentials for both _pushbullet_ and _praw_
 * Either you can run the code as `python3 main.py` or through Dockerfile as follows
     * Build image from Dockerfile `docker build --tag <name>:<tag> .`
