@@ -42,7 +42,7 @@ SUBREDDIT = 'bapcsalescanada'
 
 # Constants
 WAIT_TIME = 2  # minute
-MAX_POSTS_LIMIT = 10
+NEW_POSTS_LIMIT = 10
 ITEM_MATCH = ["[CPU", "[MONITOR", '[MOTHERBOARD', '[MOBO', '[GPU', '[SSD']
 
 
@@ -81,7 +81,7 @@ def main():
         logger.info(f"+----------------------------------+")
 
         try:
-            subreddit_posts_new = subreddit.new(limit=MAX_POSTS_LIMIT)
+            subreddit_posts_new = subreddit.new(limit=NEW_POSTS_LIMIT)
             prev_timestamp = my_items['timestamp']
             # Read all available posts except stickied
             # Convert title to uppercase to choose with interested matches
@@ -89,13 +89,8 @@ def main():
             for posts_obj in subreddit_posts_new:
                 if not posts_obj.stickied and any(x in posts_obj.title.upper() for x in ITEM_MATCH):
                     if posts_obj not in my_items['items']:
-                        if len(my_items['items']) >= MAX_POSTS_LIMIT:
-                            first_entry = list(my_items['items'])[0]
-                            logger.debug(f"Max length reached for items. Removing the oldest entry [{first_entry}]")
-                            my_items['items'].pop(first_entry)
-
-                        logger.debug(f"Adding new postobj id: [{posts_obj}]")
-                        my_items['items'][posts_obj] = f"{'*'*10} #{len(my_items['items']) + 1} {'*'*10}\nTitle: {posts_obj.title}\nURL: {posts_obj.url}\n"
+                        logger.debug(f"Adding postobj id: [{posts_obj}]")
+                        my_items['items'][posts_obj] = f"Title: {posts_obj.title}\nURL: {posts_obj.url}\n{'*'*30}\n"
                         my_items['timestamp'] = time()
                         logger.debug(f"Updating timestamp to [{my_items['timestamp']}]")
                     else:
