@@ -1,3 +1,4 @@
 pushbullet_credentials
 praw_credentials
 logs
+/venv

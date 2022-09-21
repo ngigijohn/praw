@@ -4,10 +4,13 @@ import traceback
 import logging
 import json
 from time import sleep, strftime, localtime, time
+from random import choice
+import urllib.request
+urllib.request.urlretrieve("https://i.redd.it/3ui2gfsifbo91.jpg", "quote.jpg")
+
 
 # 3rd party imports
 import praw
-from notifiers import get_notifier
 
 """ LOGGING DETAILS """
 # Logging settings for current module
@@ -34,16 +37,14 @@ logger.addHandler(sh)
 logger.addHandler(fh)
 """ ---------  """
 # Globals
-PUSHBULLET_CRED_FILE = os.path.join(DIR_PATH, 'pushbullet_credentials')
-PUSHBULLET_CRED_DICT = {}
 PRAW_CRED_FILE = os.path.join(DIR_PATH, 'praw_credentials')
 PRAW_CRED_DICT = {}
-SUBREDDIT = 'bapcsalescanada'
+SUBREDDITS = ['qoutesporn', 'showerthoughts', ]
 
 # Constants
-WAIT_TIME = 2  # minute
+WAIT_TIME = 4 * 60   # minute
 MAX_POSTS_LIMIT = 10
-ITEM_MATCH = ["[CPU", "[MONITOR", '[MOTHERBOARD', '[MOBO', '[GPU', '[SSD']
+ITEM_MATCH = ["[C", "[M", '[N', '[O', '[U', '[D']
 
 
 def read_credentials(cred_items):
@@ -62,19 +63,19 @@ def read_credentials(cred_items):
 
 def main():
     # Save credentials for praw and pushbullet in respective dictionaries
-    list(map(read_credentials, zip([PUSHBULLET_CRED_FILE, PRAW_CRED_FILE], [PUSHBULLET_CRED_DICT, PRAW_CRED_DICT])))
+    list(map(read_credentials, zip([PRAW_CRED_FILE], [ PRAW_CRED_DICT])))
 
     # Initialize notifier and praw instance
-    pushbullet_notifier = get_notifier('pushbullet')
     reddit = praw.Reddit(**PRAW_CRED_DICT)
 
     # Subreddit to read info from and variables to save info to
-    subreddit = reddit.subreddit(SUBREDDIT)
+    # subreddit = reddit.subreddit(SUBREDDIT)
     my_items = {'timestamp': None, 'items': {}}
     prev_timestamp = None
 
     main_loop_iter_count = 1
     while True:
+        subreddit = reddit.subreddit(choice(SUBREDDITS))
         logger.info(f"+----------------------------------+")
         logger.info(f"# Fetching new subreddit posts")
         logger.info(f"# ITERATION - {main_loop_iter_count}")
@@ -87,14 +88,15 @@ def main():
             # Convert title to uppercase to choose with interested matches
             # Every new post added will change the timestamp to identify when to send notification
             for posts_obj in subreddit_posts_new:
-                if not posts_obj.stickied and any(x in posts_obj.title.upper() for x in ITEM_MATCH):
+                # if not posts_obj.stickied and any(x in posts_obj.title.upper() for x in ITEM_MATCH):
+                if not posts_obj.stickied:
                     if posts_obj not in my_items['items']:
                         if len(my_items['items']) >= MAX_POSTS_LIMIT:
                             first_entry = list(my_items['items'])[0]
                             logger.debug(f"Max length reached for items. Removing the oldest entry [{first_entry}]")
                             my_items['items'].pop(first_entry)
                         logger.debug(f"Adding new postobj id: [{posts_obj}]")
-                        my_items['items'][posts_obj] = f"Title: {posts_obj.title}\nURL: {posts_obj.url}\n{'*'*30}\n"
+                        my_items['items'][posts_obj] = posts_obj
                         my_items['timestamp'] = time()
                         logger.debug(f"Updating timestamp to [{my_items['timestamp']}]")
                     else:
@@ -102,7 +104,10 @@ def main():
 
             if prev_timestamp != my_items['timestamp']:  # new entry in item list
                 logger.info("New post(s) available. Sending push notification")
-                pushbullet_notifier.notify(message=''.join(my_items['items'].values()), **PUSHBULLET_CRED_DICT)
+                # print(my_items['items'].values())
+                print(list(my_items['items'])[0].title)
+                
+                # pushbullet_notifier.notify(message=''.join(my_items['items'].values()), **PUSHBULLET_CRED_DICT)
             else:
                 logger.info("No new posts with matching pattern")
 
@@ -110,8 +115,8 @@ def main():
             err_str = f"Exception occured: [{repr(err)}]"
             logger.error(err_str)
             logger.error("Traceback: ", exc_info=True)
-            pushbullet_notifier.notify(message=json.dumps(traceback.format_exc()), **PUSHBULLET_CRED_DICT)
-
+            # pushbullet_notifier.notify(message=json.dumps(traceback.format_exc()), **PUSHBULLET_CRED_DICT)
+            print(json.dumps(traceback.format_exc()))
         finally:
             logger.info(f"Waiting for {WAIT_TIME} minute for next iteration...")
             main_loop_iter_count += 1
