@@ -8,19 +8,26 @@ from datetime import datetime
 from random import choice, sample
 from RedDownloader import RedDownloader
 
-# import urllib.request
-# urllib.request.urlretrieve("https://i.redd.it/3ui2gfsifbo91.jpg", "quote.jpg")
+import urllib.request
+
 
 
 # 3rd party imports
+
+import praw
+import tweepy
 from dotenv import load_dotenv, dotenv_values
 
 load_dotenv()
 config = dotenv_values(".env")
-print(config['consumer_key'])
 
-import praw
-import tweepy
+# Globals
+SUBREDDITS = ['weatherporn','architectureporn', 'showerthoughts', 'imaginarysliceoflife', 'qoutesporn']
+
+# Constants
+WAIT_TIME = 60   # minute
+MAX_POSTS_LIMIT = 1
+
 
 """ LOGGING DETAILS """
 # Logging settings for current module
@@ -46,52 +53,59 @@ fh.setFormatter(fh_formatter)
 logger.addHandler(sh)
 logger.addHandler(fh)
 """ ---------  """
-# Globals
-PRAW_CRED_FILE = os.path.join(DIR_PATH, 'praw_credentials')
-PRAW_CRED_DICT = {}
-SUBREDDITS = ['qoutesporn', 'showerthoughts', ]
-
-# Constants
-WAIT_TIME = 4 * 60   # minute
-MAX_POSTS_LIMIT = 2
-ITEM_MATCH = ["[C", "[M", '[N', '[O', '[U', '[D']
 
 
-def read_credentials(cred_items):
-    """
-    Read the credentials from the file and save it in the dictionary
-
-    Arguments:
-        cred_items {tuple} -- Tuple containing credentials file and dict to save result
-    """
-    cred_file, cred_dict = cred_items
-    with open(cred_file, 'r') as f:
-        for line in f:
-            key, value = line.partition("=")[::2]
-            cred_dict[key.strip()] = value.strip()
-
-url = 'https://www.reddit.com/r/PunPatrol/comments/xoub9i/show_yourself/?utm_source=share&utm_medium=web2x&context=3'
-url_2 = 'https://www.reddit.com/r/Showerthoughts/comments/xomse1/storage_units_are_more_of_a_monument_to/?utm_source=share&utm_medium=web2x&context=3'
-def main():
-
-    RedDownloader.Download(url_2)
-    # Save credentials for praw and pushbullet in respective dictionaries
-    list(map(read_credentials, zip([PRAW_CRED_FILE], [ PRAW_CRED_DICT])))
-
-    # Initialize notifier and praw instance
-    reddit = praw.Reddit(**PRAW_CRED_DICT)
-
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_token_secret)
+def post_tweet(post):
+    # Initialize and tweepy instance
+    auth = tweepy.OAuthHandler(config['consumer_key'], config['consumer_secret'])
+    auth.set_access_token(config['access_token'], config['access_token_secret'])
     api = tweepy.API(auth, wait_on_rate_limit=True)
 
-    # Subreddit to read info from and variables to save info to
-    # subreddit = reddit.subreddit(SUBREDDIT)
+    if post_type(post)== 'text':
+        api.update_status(post.title + "\n\n" + post.selftext)
+    elif post_type(post) == 'image':
+        urllib.request.urlretrieve(post.url, "downloaded.jpeg")
+        logger.info(f"# Downloading post image")
+        sleep(5)
+        api.update_status_with_media(post.title, "downloaded.jpeg")
+    elif post_type(post) == 'video':
+        RedDownloader.Download(post.url, 1080)
+        api.update_status_with_media(post.title, "downloaded.mp4")
+
+def post_type(subm) -> str:
+    if getattr(subm, 'post_hint', '') == 'image':
+        return 'image'
+    elif getattr(subm, 'is_gallery', False):
+        return 'gallery'
+    elif subm.is_video:
+        return 'video'
+    elif hasattr(subm, 'poll_data'):
+        return 'poll'
+    elif hasattr(subm, 'crosspost_parent'):
+        return 'crosspost'
+    elif subm.is_self:
+        return 'text'
+    else:
+        return 'link'
+
+
+def main():
+    # Initialize and praw instance
+    reddit = praw.Reddit(
+    client_id = config["client_id"],
+    client_secret = config["client_secret"],
+    user_agent = config["user_agent"])
+
+    
+
     my_items = {'timestamp': None, 'items': {}}
     prev_timestamp = None
 
-    main_loop_iter_count = 1
-    while True:
+    main_loop_iter_count = 0
+    while main_loop_iter_count <= 5:
+        main_loop_iter_count += 1
+
+        # Subreddit to read info from and variables to save info to
         subreddit = reddit.subreddit(choice(SUBREDDITS))
         logger.info(f"+----------------------------------+")
         logger.info(f"# Fetching new subreddit posts")
@@ -120,20 +134,20 @@ def main():
                         logger.debug(f"Post object [{posts_obj}] is already in list")
 
             if prev_timestamp != my_items['timestamp']:  # new entry in item list
-                logger.info("New post(s) available. Sending push notification")
-                # print(my_items['items'].values())
-                tweet = list(my_items['items'])[0].title
-                api.update_status(tweet)
+                logger.info("New post(s) available. posting Tweet")
+                post = list(my_items['items'])[-1]
+                logger.info(f"fetched: {post}, Title: {post.title}")
                 
-                # pushbullet_notifier.notify(message=''.join(my_items['items'].values()), **PUSHBULLET_CRED_DICT)
+                post_tweet(post)
+                logger.info(f"updated status...")
+                
             else:
                 logger.info("No new posts with matching pattern")
 
         except Exception as err:
-            err_str = f"Exception occured: [{repr(err)}]"
+            err_str = f"Exception occurred: [{repr(err)}]"
             logger.error(err_str)
             logger.error("Traceback: ", exc_info=True)
-            # pushbullet_notifier.notify(message=json.dumps(traceback.format_exc()), **PUSHBULLET_CRED_DICT)
             print(json.dumps(traceback.format_exc()))
         finally:
             logger.info(f"Waiting for {WAIT_TIME} minute for next iteration...")
